@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name='django-stored-procedures',
+    name='django_stored_procedures',
     version='0.1a',
     keywords=['django', 'stored procedures', 'database'],
     packages=['django_sp'],
