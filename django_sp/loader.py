@@ -1,7 +1,7 @@
 import logging
-import typing
 import os
 import re
+import typing
 from functools import partial
 
 from django.apps import apps
@@ -11,6 +11,7 @@ from django.db import connections
 logger = logging.getLogger('django_sp.loader')
 
 # TODO: Extend REGEXP and executor to validate arguments
+# TODO: Add support for multiple databases
 
 
 class Loader:
@@ -35,6 +36,8 @@ class Loader:
             if os.access(d, os.R_OK | os.X_OK):
                 content = os.listdir(d)
                 sp_list += [os.path.join(d, f) for f in content]
+            else:
+                logger.error('Directory {} not readable! Can\'t install stored procedures from there'.format(d))
 
         self._sp_list = sp_list
 
