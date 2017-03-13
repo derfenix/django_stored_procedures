@@ -1,8 +1,9 @@
+import logging
+import typing
 import os
 import re
 from functools import partial
 
-import logging
 from django.apps import apps
 from django.conf import settings
 from django.db import connections
@@ -13,7 +14,7 @@ logger = logging.getLogger('django_sp.loader')
 
 
 class Loader:
-    REGEXP = re.compile('CREATE OR REPLACE FUNCTION (\w+)')
+    REGEXP = re.compile('CREATE OR REPLACE FUNCTION (\w+)', re.MULTILINE)
 
     def __init__(self, db_name='default'):
         self._db_name = db_name
@@ -31,7 +32,7 @@ class Loader:
         for app in apps_list:
             app_path = apps.get_app_config(app).path
             d = os.path.join(app_path, sp_dir)
-            if os.access(d, os.R_OK & os.X_OK):
+            if os.access(d, os.R_OK | os.X_OK):
                 content = os.listdir(d)
                 sp_list += [os.path.join(d, f) for f in content]
 
@@ -54,7 +55,7 @@ class Loader:
                 names += self.REGEXP.findall(f.read())
         self._names = names
 
-    def _execute_sp(self, name, *args, fetchone=False):
+    def _execute_sp(self, name: str, *args, fetchone=False) -> list:
         cursor = connections[self._db_name].cursor()
         statement = "SELECT {}({})".format(
             name, ", ".join(args)
@@ -64,16 +65,16 @@ class Loader:
         method = cursor.fetchall if not fetchone else cursor.fetchone
         return [dict(zip(columns, row)) for row in method()]
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> typing.Callable:
         if item not in self._names:
             raise KeyError("Stored procedure {} not found".format(item))
         return partial(self._execute_sp, name=item)
 
-    def __getattr__(self, item):
+    def __getattr__(self, item: str) -> typing.Callable or object:
         if item in self._names:
             return self.__getitem__(item)
 
         return self.__getattribute__(item)
 
-    def list(self):
+    def list(self) -> list:
         return self._sp_list
