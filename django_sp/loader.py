@@ -12,6 +12,15 @@ logger = logging.getLogger('django_sp.loader')
 
 # TODO: Extend REGEXP and executor to validate arguments
 # TODO: Add support for multiple databases
+# TODO: Add management command and move there procedures installation
+
+EXECUTE_PARTIAL_DOC = """
+Call the procedure and return dict or list of dicts with procedure's return value.
+
+:param list args: List of arguments for the procedure
+:param bool fetchone: Get all values or just one. If true - one value will be returned, all other will be lost.
+"""
+
 
 
 class Loader:
@@ -20,7 +29,8 @@ class Loader:
     def __init__(self, db_name='default'):
         self._db_name = db_name
         self._sp_list = []
-        self._names = []
+        self._sp_names = []
+        self._connection = connections[self._db_name]
 
         self._get_sp_list()
         self._load_sp_into_db()
@@ -42,42 +52,60 @@ class Loader:
         self._sp_list = sp_list
 
     def _load_sp_into_db(self):
-        cursor = connections[self._db_name].cursor()
-        for sp_file in self._sp_list[:]:
-            if not os.access(sp_file, os.R_OK):
-                logger.error('File {} not readable! Can\'t install stored procedure from it'.format(sp_file))
-                self._sp_list.pop(sp_file)
-                continue
-            with open(sp_file, 'r') as f:
-                cursor.execute(f.read())
+        with self._connection.cursor() as cursor:
+            for sp_file in self._sp_list[:]:
+                if not os.access(sp_file, os.R_OK):
+                    logger.error('File {} not readable! Can\'t install stored procedure from it'.format(sp_file))
+                    self._sp_list.pop(sp_file)
+                    continue
+                with open(sp_file, 'r') as f:
+                    cursor.execute(f.read())
 
     def _populate_helper(self):
         names = []
         for sp_file in self._sp_list:
             with open(sp_file, 'r') as f:
                 names += self.REGEXP.findall(f.read())
-        self._names = names
+        self._sp_names = names
 
-    def _execute_sp(self, name: str, *args, fetchone=False) -> list:
-        cursor = connections[self._db_name].cursor()
-        statement = "SELECT {}({})".format(
-            name, ", ".join(args)
+    def _execute_sp(self, name: str, *args, fetchone=True, cursor_return=False) -> list or dict:
+        placeholders = ",".join(['%s' for _ in range(len(args))])
+        statement = "SELECT {name}({placeholders})".format(
+            name=name, placeholders=placeholders,
         )
-        cursor.execute(statement)
-        columns = [col[0] for col in cursor.description]
-        method = cursor.fetchall if not fetchone else cursor.fetchone
-        return [dict(zip(columns, row)) for row in method()]
+
+        cursor = self._connection.cursor()
+        try:
+            cursor.execute(statement, args)
+            if cursor_return:
+                return cursor
+
+            columns = [col[0] for col in cursor.description]
+            if fetchone:
+                res = dict(zip(columns, cursor.fetchone()))
+            else:
+                res = [dict(zip(columns, row)) for row in cursor]
+        finally:
+            if not cursor_return:
+                cursor.close()
+
+        return res
 
     def __getitem__(self, item: str) -> typing.Callable:
-        if item not in self._names:
+        if item not in self._sp_names:
             raise KeyError("Stored procedure {} not found".format(item))
-        return partial(self._execute_sp, name=item)
+        func = partial(self._execute_sp, name=item)
+        func.__doc__ = EXECUTE_PARTIAL_DOC
+        return func
 
     def __getattr__(self, item: str) -> typing.Callable or object:
-        if item in self._names:
+        if item in self._sp_names:
             return self.__getitem__(item)
 
         return self.__getattribute__(item)
 
     def list(self) -> list:
         return self._sp_list
+
+    def commit(self):
+        self._connection.commit()

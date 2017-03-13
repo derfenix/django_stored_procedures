@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='django_stored_procedures',
-    version='0.1a',
+    version='0.1a1',
     keywords=['django', 'stored procedures', 'database'],
     packages=['django_sp'],
     url='https://github.com/derfenix/django_stored_procedures/',
