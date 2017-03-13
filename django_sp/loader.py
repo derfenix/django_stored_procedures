@@ -22,7 +22,6 @@ Call the procedure and return dict or list of dicts with procedure's return valu
 """
 
 
-
 class Loader:
     REGEXP = re.compile('CREATE OR REPLACE FUNCTION (\w+)', re.MULTILINE)
 
@@ -32,11 +31,10 @@ class Loader:
         self._sp_names = []
         self._connection = connections[self._db_name]
 
-        self._get_sp_list()
-        self._load_sp_into_db()
-        self._populate_helper()
+        self._get_sp_files_list()
+        self.populate_helper()
 
-    def _get_sp_list(self):
+    def _get_sp_files_list(self):
         sp_dir = settings.get('SP_DIR', 'sp')
         apps_list = settings.get('INSTALLED_APPS')
         sp_list = []
@@ -51,7 +49,7 @@ class Loader:
 
         self._sp_list = sp_list
 
-    def _load_sp_into_db(self):
+    def load_sp_into_db(self):
         with self._connection.cursor() as cursor:
             for sp_file in self._sp_list[:]:
                 if not os.access(sp_file, os.R_OK):
@@ -61,7 +59,7 @@ class Loader:
                 with open(sp_file, 'r') as f:
                     cursor.execute(f.read())
 
-    def _populate_helper(self):
+    def populate_helper(self):
         names = []
         for sp_file in self._sp_list:
             with open(sp_file, 'r') as f:
