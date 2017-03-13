@@ -1,11 +1,11 @@
 from setuptools import setup
 
 setup(
-    name='django_sp',
+    name='django-stored-procedures',
     version='0.1a',
     keywords=['django', 'stored procedures', 'database'],
     packages=['django_sp'],
-    url='https://github.com/derfenix/django_sp/',
+    url='https://github.com/derfenix/django_stored_procedures/',
     license='GPLv3+',
     author='Sergey Kostyuchenko',
     author_email='derfenix@gmail.com',
