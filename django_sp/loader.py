@@ -1,14 +1,16 @@
 import logging
 import os
 import re
-import typing
 from functools import partial
 
+import typing
 from django.apps import apps
 from django.conf import settings
 from django.db import connections
 
 logger = logging.getLogger('django_sp.loader')
+
+Cursor = typing.TypeVar('Cursor')
 
 # TODO: Extend REGEXP and executor to validate arguments
 # TODO: Add support for multiple databases
@@ -66,7 +68,7 @@ class Loader:
                 names += self.REGEXP.findall(f.read())
         self._sp_names = names
 
-    def _execute_sp(self, name: str, *args, fetchone=True, cursor_return=False) -> list or dict:
+    def _execute_sp(self, name: str, *args, fetchone=True, cursor_return=False) -> typing.Union[list, dict, Cursor]:
         placeholders = ",".join(['%s' for _ in range(len(args))])
         statement = "SELECT {name}({placeholders})".format(
             name=name, placeholders=placeholders,
@@ -96,13 +98,13 @@ class Loader:
         func.__doc__ = EXECUTE_PARTIAL_DOC
         return func
 
-    def __getattr__(self, item: str) -> typing.Callable or object:
+    def __getattr__(self, item: str) -> typing.Union[typing.Callable, object]:
         if item in self._sp_names:
             return self.__getitem__(item)
 
         return self.__getattribute__(item)
 
-    def list(self) -> list:
+    def list(self) -> typing.List:
         return self._sp_list
 
     def commit(self):
