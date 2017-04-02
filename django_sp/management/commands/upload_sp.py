@@ -10,4 +10,4 @@ class Command(BaseCommand):
         loader = Loader()
         loader.load_sp_into_db()
         loader.populate_helper()
-        print("Available next procedures:", ', '.join(loader.list()))
+        print("Available {} procedures:", len(loader))

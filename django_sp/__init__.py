@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 __all__ = ['sp_loader']
 
 # Initiated in django_sp.apps.DjangoSPConfig.ready()

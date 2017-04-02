@@ -13,6 +13,14 @@ So stored procedure can be called via helper, its defenition must starts with ``
 where ``<name>`` is procedure's name. Case is important.
 
 
+Upload procedures
+-----------------
+
+.. code-block:: shell
+
+    $ ./manage.py upload_sp
+
+
 Usage
 -----
 

@@ -1,20 +1,17 @@
-import logging
 import os
 import re
+import typing
 from functools import partial
 
-import typing
 from django.apps import apps
 from django.conf import settings
 from django.db import connections
 
-logger = logging.getLogger('django_sp.loader')
+from . import logger as base_logger
+
+logger = base_logger.getChild(__name__)
 
 Cursor = typing.TypeVar('Cursor')
-
-# TODO: Extend REGEXP and executor to validate arguments
-# TODO: Add support for multiple databases
-# TODO: Add management command and move there procedures installation
 
 EXECUTE_PARTIAL_DOC = """
 Call the procedure and return dict or list of dicts with procedure's return value.
@@ -33,10 +30,10 @@ class Loader:
         self._sp_names = []
         self._connection = connections[self._db_name]
 
-        self._get_sp_files_list()
+        self._fill_sp_files_list()
         self.populate_helper()
 
-    def _get_sp_files_list(self):
+    def _fill_sp_files_list(self):
         sp_dir = settings.get('SP_DIR', 'sp')
         apps_list = settings.get('INSTALLED_APPS')
         sp_list = []
@@ -44,19 +41,24 @@ class Loader:
             app_path = apps.get_app_config(app).path
             d = os.path.join(app_path, sp_dir)
             if os.access(d, os.R_OK | os.X_OK):
-                content = os.listdir(d)
-                sp_list += [os.path.join(d, f) for f in content]
+                files = os.listdir(d)
+                sp_list += [os.path.join(d, f) for f in files]
             else:
-                logger.error('Directory {} not readable! Can\'t install stored procedures from there'.format(d))
+                logger.error('Directory {} not readable!'.format(d))
 
         self._sp_list = sp_list
+
+    def _check_file_for_reading(self, sp_file: str) -> bool:
+        if not os.access(sp_file, os.R_OK):
+            logger.error('File {} not readable! Can\'t install stored procedure from it'.format(sp_file))
+            self._sp_list.remove(sp_file)
+            return False
+        return True
 
     def load_sp_into_db(self):
         with self._connection.cursor() as cursor:
             for sp_file in self._sp_list[:]:
-                if not os.access(sp_file, os.R_OK):
-                    logger.error('File {} not readable! Can\'t install stored procedure from it'.format(sp_file))
-                    self._sp_list.pop(sp_file)
+                if not self._check_file_for_reading(sp_file):
                     continue
                 with open(sp_file, 'r') as f:
                     cursor.execute(f.read())
@@ -64,11 +66,22 @@ class Loader:
     def populate_helper(self):
         names = []
         for sp_file in self._sp_list:
+            if not self._check_file_for_reading(sp_file):
+                continue
             with open(sp_file, 'r') as f:
                 names += self.REGEXP.findall(f.read())
         self._sp_names = names
 
-    def _execute_sp(self, name: str, *args, fetchone=True, cursor_return=False) -> typing.Union[list, dict, Cursor]:
+    def _execute_sp(self, name: str, *args, ret='one') -> typing.Union[list, dict, Cursor]:
+        """
+        Execute stored procedure and return result 
+        
+        :param name: 
+        :param args: 
+        :param ret: One of 'one', 'many' or 'cursor'  
+        """
+        assert ret in ['one', 'many', 'cursor']
+
         placeholders = ",".join(['%s' for _ in range(len(args))])
         statement = "SELECT {name}({placeholders})".format(
             name=name, placeholders=placeholders,
@@ -77,16 +90,16 @@ class Loader:
         cursor = self._connection.cursor()
         try:
             cursor.execute(statement, args)
-            if cursor_return:
+            if ret == 'cursor':
                 return cursor
 
             columns = [col[0] for col in cursor.description]
-            if fetchone:
+            if ret == 'one':
                 res = dict(zip(columns, cursor.fetchone()))
-            else:
+            else:  # ret == 'many'
                 res = [dict(zip(columns, row)) for row in cursor]
         finally:
-            if not cursor_return:
+            if ret != 'cursor':
                 cursor.close()
 
         return res
@@ -104,8 +117,14 @@ class Loader:
 
         return self.__getattribute__(item)
 
+    def __len__(self) -> int:
+        return len(self._sp_names)
+
+    def __contains__(self, item: str) -> bool:
+        return item in self._sp_names
+
     def list(self) -> typing.List:
-        return self._sp_list
+        return self._sp_names
 
     def commit(self):
         self._connection.commit()
