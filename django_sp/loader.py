@@ -82,7 +82,8 @@ class Loader:
         assert ret in ['one', 'all', 'cursor']
 
         placeholders = ",".join(['%s' for _ in range(len(args))])
-        statement = "SELECT {name}({placeholders})".format(
+        # noinspection SqlDialectInspection, SqlNoDataSourceInspection
+        statement = "SELECT * FROM {name}({placeholders})".format(
             name=name, placeholders=placeholders,
         )
 
@@ -104,7 +105,37 @@ class Loader:
         return res
 
     def _execute_view(self, name: str, *args, ret: str = 'one'):
-        pass
+        """
+        Select from view and return result 
+
+        :param name: 
+        :param args: 
+        :param ret: One of 'one', 'all' or 'cursor'  
+        """
+        assert ret in ['one', 'all', 'cursor']
+
+        filters = ",".join(args)
+        # noinspection SqlDialectInspection, SqlNoDataSourceInspection
+        statement = "SELECT * FROM {name} {filters}".format(
+            name=name, filters=filters,
+        )
+
+        cursor = self._connection.cursor()
+        try:
+            cursor.execute(statement)
+            if ret == 'cursor':
+                return cursor
+
+            columns = [col[0] for col in cursor.description]
+            if ret == 'one':
+                res = dict(zip(columns, cursor.fetchone()))
+            else:  # ret == 'all'
+                res = (dict(zip(columns, row)) for row in cursor)
+        finally:
+            if ret != 'cursor':
+                cursor.close()
+
+        return res
 
     @staticmethod
     def columns_from_cursor(cursor: Cursor) -> typing.List:
