@@ -9,5 +9,4 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         loader = Loader()
         loader.load_sp_into_db()
-        loader.populate_helper()
         print("Available {} procedures:", len(loader))
