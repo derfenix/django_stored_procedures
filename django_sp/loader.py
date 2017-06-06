@@ -36,7 +36,7 @@ class Loader:
     def _fill_sp_files_list(self):
         sp_dir = getattr(settings, 'SP_DIR', '/sp/')
         sp_list = []
-        for app in apps.app_configs:
+        for app in apps.app_configs.values():
             app_path = app.path
             d = os.path.join(app_path, sp_dir)
             if os.access(d, os.R_OK | os.X_OK):
