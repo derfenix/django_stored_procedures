@@ -22,7 +22,7 @@ Call the procedure and return dict or list of dicts with procedure's return valu
 
 
 class Loader:
-    REGEXP = re.compile('CREATE OR REPLACE FUNCTION (\w+)', re.MULTILINE)
+    REGEXP = re.compile('CREATE (?:OR REPLACE)? (?:(?:VIEW)|(?:FUNCTION)) ([^_]\w+)', re.MULTILINE)
 
     def __init__(self, db_name='default'):
         self._db_name = db_name

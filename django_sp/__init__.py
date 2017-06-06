@@ -1,6 +1,6 @@
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('django_sp')
 
 __all__ = ['sp_loader']
 
