@@ -69,7 +69,7 @@ class Loader:
             with open(sp_file, 'r') as f:
                 names = self.REGEXP.findall(f.read())
                 for typ, name in names:
-                    self._sp_names[name] = typ
+                    self._sp_names[name] = typ.lower()
 
     def _execute_sp(self, name: str, *args, ret='one') -> typing.Union[typing.List, typing.Iterator, Cursor]:
         """
