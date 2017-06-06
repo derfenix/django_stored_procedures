@@ -39,7 +39,7 @@ class Loader:
         for name, app in apps.app_configs.items():
             app_path = app.path
             d = os.path.join(app_path, sp_dir)
-            logger.debug('Looking into %s app at %s', name, app_path)
+            logger.debug('Looking into %s app at %s', name, d)
             if os.access(d, os.R_OK | os.X_OK):
                 logger.debug('Added sp dir for %s', name)
                 files = os.listdir(d)
