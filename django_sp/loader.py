@@ -13,21 +13,18 @@ logger = base_logger.getChild(__name__)
 
 Cursor = typing.TypeVar('Cursor')
 
-EXECUTE_PARTIAL_DOC = """
-Call the procedure and return dict or list of dicts with procedure's return value.
-
-:param list args: List of arguments for the procedure
-:param bool fetchone: Get all values or just one. If true - one value will be returned, all other will be lost.
-"""
-
 
 class Loader:
-    REGEXP = re.compile('CREATE (?:OR REPLACE)? (?:(?:VIEW)|(?:FUNCTION)) ([^_]\w+)', re.MULTILINE)
+    REGEXP = re.compile('CREATE (?:OR REPLACE)? (?P<type>(?:VIEW)|(?:FUNCTION)) (?P<name>[^_]\w+)', re.MULTILINE)
+    EXECUTORS = {
+        'function': '_execute_sp',
+        'view': '_execute_view'
+    }
 
     def __init__(self, db_name='default'):
         self._db_name = db_name
         self._sp_list = []
-        self._sp_names = []
+        self._sp_names = {}
         self._connection = connections[self._db_name]
 
         self._fill_sp_files_list()
@@ -66,13 +63,13 @@ class Loader:
                     cursor.execute(f.read())
 
     def populate_helper(self):
-        names = []
         for sp_file in self._sp_list:
             if not self._check_file_for_reading(sp_file):
                 continue
             with open(sp_file, 'r') as f:
-                names += self.REGEXP.findall(f.read())
-        self._sp_names = names
+                names = self.REGEXP.findall(f.read())
+                for typ, name in names:
+                    self._sp_names[name] = typ
 
     def _execute_sp(self, name: str, *args, ret='one') -> typing.Union[typing.List, typing.Iterator, Cursor]:
         """
@@ -106,6 +103,9 @@ class Loader:
 
         return res
 
+    def _execute_view(self, name: str, *args, ret: str = 'one'):
+        pass
+
     @staticmethod
     def columns_from_cursor(cursor: Cursor) -> typing.List:
         return [col[0] for col in cursor.description]
@@ -115,10 +115,11 @@ class Loader:
         return dict(zip(columns, row))
 
     def __getitem__(self, item: str) -> typing.Callable:
-        if item not in self._sp_names:
+        if item not in self._sp_names.keys():
             raise KeyError("Stored procedure {} not found".format(item))
-        func = partial(self._execute_sp, name=item)
-        func.__doc__ = EXECUTE_PARTIAL_DOC
+
+        executor = self.EXECUTORS[self._sp_names[item]]
+        func = partial(getattr(self, executor), name=item)
         return func
 
     def __getattr__(self, item: str) -> typing.Union[typing.Callable, object]:
@@ -133,8 +134,8 @@ class Loader:
     def __contains__(self, item: str) -> bool:
         return item in self._sp_names
 
-    def list(self) -> typing.List:
-        return self._sp_names
+    def list(self) -> typing.Tuple:
+        return tuple(self._sp_names.keys())
 
     def commit(self):
         self._connection.commit()
