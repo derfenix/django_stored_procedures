@@ -36,14 +36,17 @@ class Loader:
     def _fill_sp_files_list(self):
         sp_dir = getattr(settings, 'SP_DIR', '/sp/')
         sp_list = []
-        for app in apps.app_configs.values():
+        for name, app in apps.app_configs.items():
+            logger.debug('Looking into %s app', name)
             app_path = app.path
             d = os.path.join(app_path, sp_dir)
             if os.access(d, os.R_OK | os.X_OK):
+                logger.debug('Added sp dir for %s', name)
                 files = os.listdir(d)
+                logger.debug('Added files to sp_list: %s', files)
                 sp_list += [os.path.join(d, f) for f in files]
             else:
-                logger.error('Directory {} not readable!'.format(d))
+                logger.error('Directory %s/%s not readable!', app_path, d)
 
         self._sp_list = sp_list
 
