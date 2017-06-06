@@ -34,7 +34,7 @@ class Loader:
         self.populate_helper()
 
     def _fill_sp_files_list(self):
-        sp_dir = getattr(settings, 'SP_DIR', '/sp/')
+        sp_dir = getattr(settings, 'SP_DIR', 'sp/')
         sp_list = []
         for name, app in apps.app_configs.items():
             app_path = app.path

@@ -1,7 +1,9 @@
 from django.apps import AppConfig
 
-import django_sp
 from django_sp.loader import Loader
+from . import init_loader, logger as base_logger
+
+logger = base_logger.getChild(__name__)
 
 
 class DjangoSPConfig(AppConfig):
@@ -10,4 +12,5 @@ class DjangoSPConfig(AppConfig):
 
     def ready(self):
         loader = Loader()
-        django_sp.sp_loader = loader
+        init_loader(loader)
+        logger.debug('Application configured')
