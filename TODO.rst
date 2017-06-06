@@ -3,3 +3,6 @@
 
 .. todo::
     Add support for multiple databases
+
+.. todo::
+    Add support for serverside cursors
