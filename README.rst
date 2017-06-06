@@ -25,9 +25,9 @@ Usage
 -----
 
     >>> from django_sp import sp_loader
-    >>> sp_loader.some_procedure(arg1, arg2, fetchone=False)
+    >>> sp_loader.some_procedure(arg1, arg2, ret='all')
     [{'column1': 'value1', 'column2': 'value2}, ... ]
-    >>> sp_loader.other_procedure(arg1, arg2)
+    >>> sp_loader.other_procedure(arg1, arg2, ret='one')
     {'column1': 'value1', 'column2': 'value2'}
     >>> sp_loader.list()
     ['some_procedure', 'other_procedure', 'else_one_procedure']

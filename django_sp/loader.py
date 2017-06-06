@@ -72,15 +72,15 @@ class Loader:
                 names += self.REGEXP.findall(f.read())
         self._sp_names = names
 
-    def _execute_sp(self, name: str, *args, ret='one') -> typing.Union[list, dict, Cursor]:
+    def _execute_sp(self, name: str, *args, ret='one') -> typing.Union[typing.List, typing.Iterator, Cursor]:
         """
         Execute stored procedure and return result 
         
         :param name: 
         :param args: 
-        :param ret: One of 'one', 'many' or 'cursor'  
+        :param ret: One of 'one', 'all' or 'cursor'  
         """
-        assert ret in ['one', 'many', 'cursor']
+        assert ret in ['one', 'all', 'cursor']
 
         placeholders = ",".join(['%s' for _ in range(len(args))])
         statement = "SELECT {name}({placeholders})".format(
@@ -96,13 +96,21 @@ class Loader:
             columns = [col[0] for col in cursor.description]
             if ret == 'one':
                 res = dict(zip(columns, cursor.fetchone()))
-            else:  # ret == 'many'
-                res = [dict(zip(columns, row)) for row in cursor]
+            else:  # ret == 'all'
+                res = (dict(zip(columns, row)) for row in cursor)
         finally:
             if ret != 'cursor':
                 cursor.close()
 
         return res
+
+    @staticmethod
+    def columns_from_cursor(cursor: Cursor) -> typing.List:
+        return [col[0] for col in cursor.description]
+
+    @staticmethod
+    def row_to_dict(row: typing.Tuple, columns: typing.List) -> typing.Dict:
+        return dict(zip(columns, row))
 
     def __getitem__(self, item: str) -> typing.Callable:
         if item not in self._sp_names:
