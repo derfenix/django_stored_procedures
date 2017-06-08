@@ -104,7 +104,7 @@ class Loader:
 
         return res
 
-    def _execute_view(self, name: str, *args, ret: str = 'one'):
+    def _execute_view(self, name: str, filters: str, *, ret: str = 'one'):
         """
         Select from view and return result 
 
@@ -114,10 +114,10 @@ class Loader:
         """
         assert ret in ['one', 'all', 'cursor']
 
-        filters = ",".join(args)
         # noinspection SqlDialectInspection, SqlNoDataSourceInspection
-        statement = "SELECT * FROM {name} {filters}".format(
+        statement = "SELECT * FROM {name} {where} {filters}".format(
             name=name, filters=filters,
+            where='WHERE' if filters else ''
         )
 
         cursor = self._connection.cursor()
