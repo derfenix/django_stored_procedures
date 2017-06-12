@@ -1,34 +1,40 @@
 import os
 import re
-import typing
 from functools import partial
+from typing import Callable, Dict, Iterator, List, Optional, Tuple, TypeVar, Union
 
 from django.apps import apps
 from django.conf import settings
-from django.db import connections
+from django.db import connection
 
 from . import logger as base_logger
 
 logger = base_logger.getChild(__name__)
 
-Cursor = typing.TypeVar('Cursor')
+Cursor = TypeVar('Cursor')
 
 
 class Loader:
-    REGEXP = re.compile('CREATE (?:OR REPLACE)? (?P<type>(?:VIEW)|(?:FUNCTION)) (?P<name>[^_]\w+)', re.MULTILINE)
+    REGEXP = re.compile(r'CREATE (?:OR REPLACE)? (?P<type>(?:VIEW)|(?:FUNCTION)) (?P<name>[^_]\w+)', re.MULTILINE)
     EXECUTORS = {
         'function': '_execute_sp',
         'view': '_execute_view'
     }
 
-    def __init__(self, db_name='default'):
-        self._db_name = db_name
+    def __init__(self, extra_files: Optional[List] = None):
         self._sp_list = []
-        self._sp_names = {}
-        self._connection = connections[self._db_name]
+        self._sp_names = None
+        self._connection = None
+        self._extra_files = extra_files
 
         self._fill_sp_files_list()
         self.populate_helper()
+
+    @property
+    def connection(self):
+        if self._connection is None:
+            self._connection = connection
+        return self._connection
 
     def _fill_sp_files_list(self):
         sp_dir = getattr(settings, 'SP_DIR', 'sp/')
@@ -41,10 +47,14 @@ class Loader:
                 logger.debug('Added sp dir for %s', name)
                 files = os.listdir(d)
                 logger.debug('Added files to sp_list: %s', files)
-                sp_list += [os.path.join(d, f) for f in files]
+                sp_list += [os.path.join(d, f) for f in files if f.endswith('.sql')]
             else:
                 logger.error('Directory %s/%s not readable!', app_path, d)
 
+        if self._extra_files is not None:
+            sp_list += self._extra_files
+            logger.debug("Added extra files: %s", self._extra_files)
+        
         self._sp_list = sp_list
 
     def _check_file_for_reading(self, sp_file: str) -> bool:
@@ -55,14 +65,18 @@ class Loader:
         return True
 
     def load_sp_into_db(self):
-        with self._connection.cursor() as cursor:
+        with self.connection.cursor() as cursor:
             for sp_file in self._sp_list[:]:
                 if not self._check_file_for_reading(sp_file):
                     continue
                 with open(sp_file, 'r') as f:
                     cursor.execute(f.read())
 
+    def add_to_list(self, file_path: str):
+        self._sp_list.append(file_path)
+
     def populate_helper(self):
+        self._sp_names = {}
         for sp_file in self._sp_list:
             if not self._check_file_for_reading(sp_file):
                 continue
@@ -71,7 +85,7 @@ class Loader:
                 for typ, name in names:
                     self._sp_names[name] = typ.lower()
 
-    def _execute_sp(self, name: str, *args, ret='one') -> typing.Union[typing.List, typing.Iterator, Cursor]:
+    def _execute_sp(self, *args, name: str, ret='one') -> Union[List, Iterator, Cursor]:
         """
         Execute stored procedure and return result 
         
@@ -87,50 +101,50 @@ class Loader:
             name=name, placeholders=placeholders,
         )
 
-        cursor = self._connection.cursor()
+        cursor = self.connection.cursor()
         try:
             cursor.execute(statement, args)
             if ret == 'cursor':
                 return cursor
 
-            columns = [col[0] for col in cursor.description]
             if ret == 'one':
-                res = dict(zip(columns, cursor.fetchone()))
+                res = cursor.fetchone()
             else:  # ret == 'all'
-                res = (dict(zip(columns, row)) for row in cursor)
+                res = (row for row in cursor)
         finally:
             if ret != 'cursor':
                 cursor.close()
 
         return res
 
-    def _execute_view(self, name: str, filters: str, *, ret: str = 'one'):
+    def _execute_view(self, filters: Optional[str] = None, params: Optional[List] = None, *,
+                      name: str, ret: str = 'one'):
         """
         Select from view and return result 
 
         :param name: 
-        :param args: 
+        :param filters: 
         :param ret: One of 'one', 'all' or 'cursor'  
         """
         assert ret in ['one', 'all', 'cursor']
 
         # noinspection SqlDialectInspection, SqlNoDataSourceInspection
         statement = "SELECT * FROM {name} {where} {filters}".format(
-            name=name, filters=filters,
-            where='WHERE' if filters else ''
+            name=name, filters=filters if filters is not None else '',
+            where='WHERE' if filters is not None else ''
         )
 
-        cursor = self._connection.cursor()
+        cursor = self.connection.cursor()
         try:
-            cursor.execute(statement)
+            cursor.execute(statement, params)
             if ret == 'cursor':
                 return cursor
 
-            columns = [col[0] for col in cursor.description]
+            columns = self.columns_from_cursor(cursor)
             if ret == 'one':
-                res = dict(zip(columns, cursor.fetchone()))
+                res = self.row_to_dict(cursor.fetchone(), columns)
             else:  # ret == 'all'
-                res = (dict(zip(columns, row)) for row in cursor)
+                res = [self.row_to_dict(row, columns) for row in cursor]
         finally:
             if ret != 'cursor':
                 cursor.close()
@@ -138,14 +152,17 @@ class Loader:
         return res
 
     @staticmethod
-    def columns_from_cursor(cursor: Cursor) -> typing.List:
+    def columns_from_cursor(cursor: Cursor) -> List:
         return [col[0] for col in cursor.description]
 
     @staticmethod
-    def row_to_dict(row: typing.Tuple, columns: typing.List) -> typing.Dict:
-        return dict(zip(columns, row))
+    def row_to_dict(row: Tuple, columns: List) -> Optional[Dict]:
+        if row:
+            return dict(zip(columns, row))
+        else:
+            return None
 
-    def __getitem__(self, item: str) -> typing.Callable:
+    def __getitem__(self, item: str) -> Callable:
         if item not in self._sp_names.keys():
             raise KeyError("Stored procedure {} not found".format(item))
 
@@ -153,7 +170,7 @@ class Loader:
         func = partial(getattr(self, executor), name=item)
         return func
 
-    def __getattr__(self, item: str) -> typing.Union[typing.Callable, object]:
+    def __getattr__(self, item: str) -> Union[Callable, object]:
         if item in self._sp_names:
             return self.__getitem__(item)
 
@@ -165,8 +182,8 @@ class Loader:
     def __contains__(self, item: str) -> bool:
         return item in self._sp_names
 
-    def list(self) -> typing.Tuple:
+    def list(self) -> Tuple:
         return tuple(self._sp_names.keys())
 
     def commit(self):
-        self._connection.commit()
+        self.connection.commit()

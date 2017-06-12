@@ -1,7 +1,8 @@
 from django.apps import AppConfig
 
+import django_sp
 from django_sp.loader import Loader
-from . import init_loader, logger as base_logger
+from . import logger as base_logger
 
 logger = base_logger.getChild(__name__)
 
@@ -11,6 +12,4 @@ class DjangoSPConfig(AppConfig):
     verbose_name = "Django Stored Procedures"
 
     def ready(self):
-        loader = Loader()
-        init_loader(loader)
-        logger.debug('Application configured')
+        django_sp.sp_loader = Loader()

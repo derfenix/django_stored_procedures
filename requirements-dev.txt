@@ -1,0 +1,4 @@
+psycopg2
+django==1.10.6
+Sphinx==1.6.2
+pytz
