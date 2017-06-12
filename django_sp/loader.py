@@ -130,8 +130,8 @@ class Loader:
 
         # noinspection SqlDialectInspection, SqlNoDataSourceInspection
         statement = "SELECT * FROM {name} {where} {filters}".format(
-            name=name, filters=filters if filters is not None else '',
-            where='WHERE' if filters is not None else ''
+            name=name, filters=filters if filters else '',
+            where='WHERE' if filters else ''
         )
 
         cursor = self.connection.cursor()
