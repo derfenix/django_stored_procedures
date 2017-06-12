@@ -127,11 +127,12 @@ class Loader:
         :param ret: One of 'one', 'all' or 'cursor'  
         """
         assert ret in ['one', 'all', 'cursor']
+        filters = filters.strip()
 
         # noinspection SqlDialectInspection, SqlNoDataSourceInspection
-        statement = "SELECT * FROM {name} {where} {filters}".format(
+        statement = "SELECT * FROM {name}{where}{filters}".format(
             name=name, filters=filters if filters else '',
-            where='WHERE' if filters else ''
+            where=' WHERE ' if filters else ''
         )
 
         cursor = self.connection.cursor()
