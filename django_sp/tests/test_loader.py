@@ -41,7 +41,7 @@ class LoaderTestCase(BaseTestCase):
         )
 
         # Fetch with cursor
-        cursor = self.sp_loader.test_view(ret='cursor')
+        cursor = self.sp_loader.test_view(filters="   ", ret='cursor')
         columns = self.sp_loader.columns_from_cursor(cursor)
 
         self.assertEqual(self.sp_loader.row_to_dict(cursor.fetchone(), columns),
