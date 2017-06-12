@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 from django.core.exceptions import ValidationError
+from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
 
 from . import logger as base_logger
@@ -177,7 +178,9 @@ class DateTimeFilter(RawSQLFilter):
     def __init__(self, input_formats: Optional[List] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input_formats = input_formats
-        raise NotImplementedError()
+
+    def _convert(self, value: Any):
+        return parse_datetime(value)
 
 
 class RawSQLFilterSet(metaclass=RawSQLFilterMeta):
