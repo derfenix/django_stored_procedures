@@ -13,4 +13,4 @@ gpg2 --detach-sign -a dist/django_stored_procedures-"${VERSION}".tar.gz
 twine upload dist/django_stored_procedures-"$VERSION".tar.gz dist/django_stored_procedures-"$VERSION".tar.gz.asc
 git commit -a -m "Bump version"
 git tag v${VERSION}
-git push
+git push --tags
