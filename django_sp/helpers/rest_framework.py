@@ -2,7 +2,7 @@ import datetime
 import re
 from collections import OrderedDict, defaultdict
 from decimal import Decimal
-from typing import Any, Dict, Generator, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 from django.core.exceptions import ValidationError
 from django.utils.functional import cached_property
@@ -79,7 +79,8 @@ class RawSQLFilter:
     }
     _converter = plain
 
-    def __init__(self, map_to: Optional[str] = None, default: Optional[Any] = None, converter: Optional[Type] = None):
+    def __init__(self, map_to: Optional[str] = None, default: Optional[Any] = None,
+                 converter: Optional[Callable] = None):
         self.default = default
         self._map_to = map_to
         if converter is not None:
