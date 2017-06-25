@@ -183,13 +183,15 @@ class DecimalFilter(IntegerFilter):
 class DateTimeFilter(RawSQLFilter):
     _converter = datetime.datetime
 
-    def __init__(self, input_formats: Optional[List] = None, *args, **kwargs):
+    def __init__(self, input_format: Optional[str] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.input_formats = input_formats
+        self.input_format = input_format
 
     def _convert(self, value: Any):
-        # TODO: Support for input formats
-        return parse_datetime(value)
+        if self.input_format is not None:
+            return datetime.datetime.strptime(value, self.input_format)
+        else:
+            return parse_datetime(value)
 
 
 class CombinedSearchFilter(StringFilter):
