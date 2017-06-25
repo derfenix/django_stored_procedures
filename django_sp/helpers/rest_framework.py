@@ -203,7 +203,7 @@ class CombinedSearchFilter(StringFilter):
 
     # noinspection PyMissingConstructor
     def __init__(self, map_to: Tuple, max_length: Optional[int] = 255, strict_search: Optional[bool] = False,
-                 case_sensitive: Optional[bool] = False, wildcard_place: Optional[str] = 'both'):
+                 case_sensitive: Optional[bool] = True, wildcard_place: Optional[str] = 'both'):
         assert wildcard_place in ('start', 'end', 'both')
         self.search_fields = map_to
         self.wildcard_place = wildcard_place
@@ -225,7 +225,7 @@ class CombinedSearchFilter(StringFilter):
         else:
             value_template = self.value_templates[self.wildcard_place]
             value = value_template.format(self._parse_value(value))
-            operator = 'LIKE' if not self.case_sensitive else 'ILIKE'
+            operator = 'LIKE' if self.case_sensitive else 'ILIKE'
 
         for field in self.search_fields:
             conditions.append('{field} {op} %s'.format(field=field, op=operator))
