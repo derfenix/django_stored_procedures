@@ -79,6 +79,7 @@ class RawSQLFilter:
         'isnull': '_isnull_condition_replace',
     }
     _converter = plain
+    default = None
 
     def __init__(self, map_to: Optional[str] = None, default: Optional[Any] = None,
                  converter: Optional[Callable] = None):
@@ -86,6 +87,11 @@ class RawSQLFilter:
         self._map_to = map_to
         if converter is not None:
             self._converter = converter
+
+        self._filter_set = None
+
+    def set_filterset(self, filter_set: 'RawSQLFilterSet'):
+        self._filter_set = filter_set
 
     @staticmethod
     def _isnull_condition_replace(value: str) -> [str, NoValue]:
@@ -97,7 +103,7 @@ class RawSQLFilter:
         else:
             raise ValueError('%s is not right value for `isnull` condition', value)
 
-    def filter(self, name: str, condition: str, value: str) -> Tuple[str, Any]:
+    def filter(self, name: str, condition: str, value: str) -> str:
         """
         Join field name, condition and value placeholder in one string
         
@@ -116,7 +122,9 @@ class RawSQLFilter:
             sql_condition, value = method(value)
 
         sql = "{} {}{}".format(name, sql_condition, ' %s' if value is not novalue else '')
-        return sql, self._parse_value(value)
+        self._filter_set.params = self._parse_value(value)
+
+        return sql
 
     def _convert(self, value: Any) -> Any:
         try:
@@ -180,7 +188,47 @@ class DateTimeFilter(RawSQLFilter):
         self.input_formats = input_formats
 
     def _convert(self, value: Any):
+        # TODO: Support for input formats
         return parse_datetime(value)
+
+
+class CombinedSearchFilter(StringFilter):
+    value_templates = {
+        'start': '%{}',
+        'end': '{}%',
+        'both': '%{}%'
+    }
+
+    # noinspection PyMissingConstructor
+    def __init__(self, map_to: Tuple, max_length: Optional[int] = 255, strict_search: Optional[bool] = False,
+                 wildcard_place: Optional[str] = 'both'):
+        assert wildcard_place in ('start', 'end', 'both')
+        self.search_fields = map_to
+        self.wildcard_place = wildcard_place
+        self.max_length = max_length
+        self.strict_search = strict_search
+
+    def filter(self, name: str, condition: str, value: str) -> str:
+        """
+        Return query condition like::
+            (field1 LIKE %s OR fields2 LIKE %s)
+
+        Also append required number of parametrs with `value` and % sign in place, specified by `wildcard_place`
+        """
+        conditions = []
+
+        if self.strict_search:
+            operator = '='
+        else:
+            value_template = self.value_templates[self.wildcard_place]
+            value = value_template.format(self._parse_value(value))
+            operator = 'LIKE'
+
+        for field in self.search_fields:
+            conditions.append('{field} {op} %s'.format(field=field, op=operator))
+            self._filter_set.params = value
+        res = "({})".format(" OR ".join(conditions))
+        return res
 
 
 class RawSQLFilterSet(metaclass=RawSQLFilterMeta):
@@ -195,6 +243,9 @@ class RawSQLFilterSet(metaclass=RawSQLFilterMeta):
         self._request_filters = self._build_request_filters(request)
         self._params_values = []
         self._conditions_built = False
+
+        for f in self.filters.values():
+            f.set_filterset(self)
 
     def _build_request_filters(self, request) -> Dict[str, List[Tuple[str, Any]]]:
         """
@@ -295,10 +346,9 @@ class RawSQLFilterSet(metaclass=RawSQLFilterMeta):
             if conds_and_values:
                 for condition, value in conds_and_values:
                     try:
-                        sql, value = filter_.filter(name, condition, value)
+                        sql = filter_.filter(name, condition, value)
                     except ValidationError as e:
                         raise ValidationError('Exception raised for {}: {}'.format(name, e))
-                    self.params = value
                     yield sql
             elif filter_.default is not None:
                 self.params = filter_.default

@@ -2,7 +2,8 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 
-from django_sp.helpers.rest_framework import DecimalFilter, IntegerFilter, RawSQLFilterSet, StringFilter
+from django_sp.helpers.rest_framework import CombinedSearchFilter, DecimalFilter, IntegerFilter, RawSQLFilterSet, \
+    StringFilter
 from django_sp.tests.base import BaseTestCase
 
 
@@ -10,7 +11,7 @@ class GenericFilterSet(RawSQLFilterSet):
     some_name = StringFilter(map_to='name', default='noop')
     age = IntegerFilter(max_value=100, min_value=10)
     amount = DecimalFilter(max_value=400, min_value=-300)
-
+    search = CombinedSearchFilter(map_to=('uno', 'dos', 'tres'))
 
     class Meta:
         order_by = '-amount'
@@ -20,7 +21,6 @@ class GenericORFilterSet(RawSQLFilterSet):
     some_name = StringFilter(map_to='name', default='noop')
     age = IntegerFilter(max_value=100, min_value=10)
     amount = DecimalFilter(max_value=400, min_value=-300)
-
 
     class Meta:
         order_by = 'amount'
@@ -88,3 +88,13 @@ class DRFHelperTestCase(BaseTestCase):
 
         filterset = GenericORFilterSet(request)
         self.assertEqual(filterset.sql.strip(), 'name = %s AND (TRUE) ORDER BY amount ASC')
+
+    def test_combined_search_filter(self):
+        request = Request(
+            {'some_name': 'test', 'search': 'chroot'}
+        )
+
+        filterset = GenericFilterSet(request)
+        self.assertEqual(filterset.sql.strip(),
+                         'name = %s AND (uno LIKE %s OR dos LIKE %s OR tres LIKE %s) ORDER BY amount DESC')
+        self.assertEqual(filterset.params, ('test', '%chroot%', '%chroot%', '%chroot%'))
