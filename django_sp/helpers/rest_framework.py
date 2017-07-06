@@ -231,17 +231,19 @@ class CombinedSearchFilter(StringFilter):
         Also append required number of parametrs with `value` and % sign in place, specified by `wildcard_place`
         """
         conditions = []
-
-        if self.strict_search or name in self.strict_fields:
-            operator = '='
-        else:
-            value_template = self.value_templates[self.wildcard_place]
-            value = value_template.format(self._parse_value(value))
-            operator = 'LIKE' if self.case_sensitive else 'ILIKE'
+        value_template = self.value_templates[self.wildcard_place]
+        wildcarded_value = value_template.format(self._parse_value(value))
 
         for field in self.search_fields:
+            if self.strict_search or field in self.strict_fields:
+                operator = '='
+                value_ = value
+            else:
+                value_ = wildcarded_value
+                operator = 'LIKE' if self.case_sensitive else 'ILIKE'
+
             conditions.append('{field} {op} %s'.format(field=field, op=operator))
-            self._filter_set.params = value
+            self._filter_set.params = value_
         res = "({})".format(" OR ".join(conditions))
         return res
 
