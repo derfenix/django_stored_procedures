@@ -195,6 +195,7 @@ class DateTimeFilter(RawSQLFilter):
 
 
 class CombinedSearchFilter(StringFilter):
+    """Search within many fields"""
     value_templates = {
         'start': '%{}',
         'end': '{}%',
@@ -203,9 +204,20 @@ class CombinedSearchFilter(StringFilter):
 
     # noinspection PyMissingConstructor
     def __init__(self, map_to: Tuple, max_length: Optional[int] = 255, strict_search: Optional[bool] = False,
-                 case_sensitive: Optional[bool] = True, wildcard_place: Optional[str] = 'both'):
+                 case_sensitive: Optional[bool] = True, wildcard_place: Optional[str] = 'both',
+                 strict_fields=None):
+        """
+        :param map_to: List of fields for search
+        :param max_length: maximum value length
+        :param strict_search: Search with equal (=) instead of ILIKE
+        :param case_sensitive: Use LIKE instead of ILIKE
+        :param wildcard_place: Where the ? mark should be placed
+        :param strict_fields: Fields, that should not use LIKE/LIKE. Integer fields must be listed here, as well as
+            other fields that have no LIKE/ILIKE operators
+        """
         assert wildcard_place in ('start', 'end', 'both')
         self.search_fields = map_to
+        self.strict_fields = strict_fields if strict_fields is not None else []
         self.wildcard_place = wildcard_place
         self.max_length = max_length
         self.strict_search = strict_search
@@ -220,7 +232,7 @@ class CombinedSearchFilter(StringFilter):
         """
         conditions = []
 
-        if self.strict_search:
+        if self.strict_search or name in self.strict_fields:
             operator = '='
         else:
             value_template = self.value_templates[self.wildcard_place]
