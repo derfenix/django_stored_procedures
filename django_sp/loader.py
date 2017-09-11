@@ -1,6 +1,7 @@
 import os
 import re
 from functools import partial
+from itertools import chain
 from typing import Callable, Dict, Iterator, List, Optional, Tuple, TypeVar, Union
 
 from django.apps import apps
@@ -42,18 +43,12 @@ class Loader:
         for name, app in apps.app_configs.items():
             app_path = app.path
             d = os.path.join(app_path, sp_dir)
-            logger.debug('Looking into %s app at %s', name, d)
             if os.access(d, os.R_OK | os.X_OK):
-                logger.debug('Added sp dir for %s', name)
                 files = os.listdir(d)
-                logger.debug('Added files to sp_list: %s', files)
                 sp_list += [os.path.join(d, f) for f in files if f.endswith('.sql')]
-            else:
-                logger.error('Directory %s/%s not readable!', app_path, d)
 
         if self._extra_files is not None:
             sp_list += self._extra_files
-            logger.debug("Added extra files: %s", self._extra_files)
         
         self._sp_list = sp_list
 
@@ -85,7 +80,7 @@ class Loader:
                 for typ, name in names:
                     self._sp_names[name] = typ.lower()
 
-    def _execute_sp(self, *args, name: str, ret='one') -> Union[List, Iterator, Cursor]:
+    def _execute_sp(self, *args, name: str, ret='one', **kwargs):
         """
         Execute stored procedure and return result 
         
@@ -93,29 +88,20 @@ class Loader:
         :param args: 
         :param ret: One of 'one', 'all' or 'cursor'  
         """
-        assert ret in ['one', 'all', 'cursor']
+        if not isinstance(ret, int):
+            assert ret in ['one', 'all', 'cursor']
+        args = [arg for arg in args if arg is not None]
 
-        placeholders = ",".join(['%s' for _ in range(len(args))])
+        arguments = ",".join(chain(
+            ['%s' for _ in args],
+            ["{} := {}".format(name, value) for name, value in kwargs.items()]
+        ))
         # noinspection SqlDialectInspection, SqlNoDataSourceInspection
-        statement = "SELECT * FROM {name}({placeholders})".format(
-            name=name, placeholders=placeholders,
+        statement = "SELECT * FROM {name}({arguments})".format(
+            name=name, arguments=arguments,
         )
 
-        cursor = self.connection.cursor()
-        try:
-            cursor.execute(statement, args)
-            if ret == 'cursor':
-                return cursor
-
-            if ret == 'one':
-                res = cursor.fetchone()
-            else:  # ret == 'all'
-                res = (row for row in cursor)
-        finally:
-            if ret != 'cursor':
-                cursor.close()
-
-        return res
+        return self._get_res(statement, args, ret)
 
     def _execute_view(self, filters: Optional[str] = None, params: Optional[List] = None, *,
                       name: str, ret: str = 'one'):
@@ -136,21 +122,33 @@ class Loader:
             where=' WHERE ' if filters else ''
         )
 
+        return self._get_res(statement, params, ret)
+
+    def _get_res(self, statement, args, ret) -> Union[List, Dict, Cursor]:
         cursor = self.connection.cursor()
         try:
-            cursor.execute(statement, params)
+            cursor.execute(statement, args)
             if ret == 'cursor':
                 return cursor
 
             columns = self.columns_from_cursor(cursor)
-            if ret == 'one':
-                res = self.row_to_dict(cursor.fetchone(), columns)
-            else:  # ret == 'all'
-                res = [self.row_to_dict(row, columns) for row in cursor]
+            if len(columns) > 0:
+                if ret == 'one':
+                    res = self.row_to_dict(cursor.fetchone(), columns)
+                elif ret == 'all':
+                    res = [self.row_to_dict(row, columns) for row in cursor]
+                else:
+                    res = [self.row_to_dict(row, columns) for row in cursor.fetchmany(ret)]
+            else:
+                if ret == 'one':
+                    res = cursor.fetchone()
+                elif ret == 'all':
+                    res = [row for row in cursor]
+                else:
+                    res = [row for row in cursor.fetchmany(ret)]
         finally:
             if ret != 'cursor':
                 cursor.close()
-
         return res
 
     @staticmethod

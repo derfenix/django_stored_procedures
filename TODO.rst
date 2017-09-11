@@ -5,4 +5,4 @@
     Add support for multiple databases
 
 .. todo::
-    Add support for serverside cursors
+    Add support for server-side cursors

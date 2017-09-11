@@ -14,7 +14,7 @@ class LoaderTestCase(BaseTestCase):
 
     def test_procedure(self):
         self.assertTrue('test_function' in self.sp_loader)
-        self.assertEqual(self.sp_loader.test_function(100), (400,))
+        self.assertEqual(self.sp_loader.test_function(100), {'test_function': 400})
 
     def test_view(self):
         self.assertTrue('test_view' in self.sp_loader)

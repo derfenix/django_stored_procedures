@@ -5,9 +5,16 @@ from decimal import Decimal
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 from django.core.exceptions import ValidationError
+from django.core.paginator import InvalidPage
 from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
+from rest_framework.exceptions import NotFound
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.utils.urls import replace_query_param, remove_query_param
 
+from django_sp import sp_loader
 from . import logger as base_logger
 
 __all__ = ['RawSQLFilterSet', 'RawSQLFilter', 'StringFilter', 'IntegerFilter', 'DecimalFilter', 'DateTimeFilter']
@@ -228,7 +235,7 @@ class CombinedSearchFilter(StringFilter):
         Return query condition like::
             (field1 LIKE %s OR fields2 LIKE %s)
 
-        Also append required number of parametrs with `value` and % sign in place, specified by `wildcard_place`
+        Also append required number of parameters with `value` and % sign in place, specified by `wildcard_place`
         """
         conditions = []
         value_template = self.value_templates[self.wildcard_place]
@@ -370,3 +377,76 @@ class RawSQLFilterSet(metaclass=RawSQLFilterMeta):
             elif filter_.default is not None:
                 self.params = filter_.default
                 yield "{} = %s".format(name)
+
+
+class PageNumberPaginator:
+    default_page_size = 50
+    page_size_param = 'page_size'
+    page_number_param = 'page'
+
+    def __init__(self, cursor, request: Request):
+        self.cursor = cursor
+        self.request = request
+
+    @cached_property
+    def page(self):
+        return self.request.query_params.get(self.page_number_param, 1)
+
+    @cached_property
+    def page_size(self):
+        return self.request.query_params.get(self.page_size_param, self.default_page_size)
+
+    @cached_property
+    def offset(self):
+        return (self.page - 1) * self.page_size
+
+    @cached_property
+    def count(self):
+        return self.cursor.rowcount
+
+    def _scroll(self):
+        self.cursor.scroll(self.offset, mode='absolute')
+
+    def has_next(self):
+        return self.count > self.offset + self.page_size
+
+    def has_previous(self):
+        return self.page > 1
+
+    @cached_property
+    def url(self):
+        return self.request.build_absolute_uri()
+
+    def get_next_link(self):
+        if not self.has_next():
+            return None
+        url = self.url
+        page_number = self.page + 1
+        return replace_query_param(url, self.page_number_param, page_number)
+
+    def get_previous_link(self):
+        if not self.has_previous():
+            return None
+        url = self.url
+        page_number = self.page - 1
+        if page_number == 1:
+            return remove_query_param(url, self.page_number_param)
+        return replace_query_param(url, self.page_number_param, page_number)
+
+    @cached_property
+    def data(self):
+        self._scroll()
+        columns = sp_loader.columns_from_cursor(self.cursor)
+        return [sp_loader.row_to_dict(row, columns) for row in self.cursor.fetchmany(self.page_size)]
+
+    def response(self):
+        return Response(
+            OrderedDict(
+                [
+                    ('count', self.count),
+                    ('next', self.get_next_link()),
+                    ('previous', self.get_previous_link()),
+                    ('results', self.data)
+                ]
+            )
+        )
