@@ -437,7 +437,7 @@ class PageNumberPaginator:
         columns = sp_loader.columns_from_cursor(self.cursor)
         return [sp_loader.row_to_dict(row, columns) for row in self.cursor.fetchmany(self.page_size)]
 
-    def response(self, serializer: Optional[Type[Serializer]] = None):
+    def response(self, serializer: Optional[Callable] = None):
         data = self.data
         if serializer is not None:
             data = serializer(data=data, context={'request': self.request})
