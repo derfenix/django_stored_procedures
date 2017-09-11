@@ -11,6 +11,9 @@ setup(
     author_email='derfenix@gmail.com',
     description='',
     install_requires=['django>=1.8'],
+    extras_require={
+        'django-rest-framework_integration': ["djangorestframework"]
+    },
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
         'Development Status :: 4 - Beta',

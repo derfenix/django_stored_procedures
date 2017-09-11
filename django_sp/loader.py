@@ -2,7 +2,7 @@ import os
 import re
 from functools import partial
 from itertools import chain
-from typing import Callable, Dict, Iterator, List, Optional, Tuple, TypeVar, Union
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 from django.apps import apps
 from django.conf import settings
@@ -86,10 +86,8 @@ class Loader:
         
         :param name: 
         :param args: 
-        :param ret: One of 'one', 'all' or 'cursor'  
+        :param ret: One of 'one', 'all', 'cursor' or number
         """
-        if not isinstance(ret, int):
-            assert ret in ['one', 'all', 'cursor']
         args = [arg for arg in args if arg is not None]
 
         arguments = ",".join(chain(
@@ -110,9 +108,8 @@ class Loader:
 
         :param name: 
         :param filters: 
-        :param ret: One of 'one', 'all' or 'cursor'  
+        :param ret: One of 'one', 'all', 'cursor' or number
         """
-        assert ret in ['one', 'all', 'cursor']
         if filters is not None:
             filters = filters.strip()
 
@@ -124,7 +121,9 @@ class Loader:
 
         return self._get_res(statement, params, ret)
 
-    def _get_res(self, statement, args, ret) -> Union[List, Dict, Cursor]:
+    def _get_res(self, statement: str, args: List, ret: Union[str, int]) -> Union[List, Dict, Cursor]:
+        if not isinstance(ret, int):
+            assert ret in ['one', 'all', 'cursor']
         cursor = self.connection.cursor()
         try:
             cursor.execute(statement, args)

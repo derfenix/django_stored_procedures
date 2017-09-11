@@ -2,16 +2,14 @@ import datetime
 import re
 from collections import OrderedDict, defaultdict
 from decimal import Decimal
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union, Type
 
 from django.core.exceptions import ValidationError
-from django.core.paginator import InvalidPage
 from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
-from rest_framework.exceptions import NotFound
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import Serializer
 from rest_framework.utils.urls import replace_query_param, remove_query_param
 
 from django_sp import sp_loader
@@ -439,14 +437,17 @@ class PageNumberPaginator:
         columns = sp_loader.columns_from_cursor(self.cursor)
         return [sp_loader.row_to_dict(row, columns) for row in self.cursor.fetchmany(self.page_size)]
 
-    def response(self):
+    def response(self, serializer: Optional[Type[Serializer]] = None):
+        data = self.data
+        if serializer is not None:
+            data = serializer(data=data, context={'request': self.request})
         return Response(
             OrderedDict(
                 [
                     ('count', self.count),
                     ('next', self.get_next_link()),
                     ('previous', self.get_previous_link()),
-                    ('results', self.data)
+                    ('results', data)
                 ]
             )
         )
