@@ -439,7 +439,7 @@ class PageNumberPaginator:
     def response(self, serializer: Optional[Callable] = None) -> Response:
         data = self.data
         if serializer is not None:
-            serializer = serializer(data=data, context={'request': self.request})
+            serializer = serializer(data=data, many=True, context={'request': self.request})
             serializer.is_valid()
             data = serializer.data
         return Response(
