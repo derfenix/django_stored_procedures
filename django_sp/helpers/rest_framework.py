@@ -9,7 +9,6 @@ from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import Serializer
 from rest_framework.utils.urls import replace_query_param, remove_query_param
 
 from django_sp import sp_loader
@@ -387,42 +386,42 @@ class PageNumberPaginator:
         self.request = request
 
     @cached_property
-    def page(self):
-        return self.request.query_params.get(self.page_number_param, 1)
+    def page(self) -> int:
+        return int(self.request.query_params.get(self.page_number_param, 1))
 
     @cached_property
-    def page_size(self):
-        return self.request.query_params.get(self.page_size_param, self.default_page_size)
+    def page_size(self) -> int:
+        return int(self.request.query_params.get(self.page_size_param, self.default_page_size))
 
     @cached_property
-    def offset(self):
-        return (self.page - 1) * self.page_size
+    def offset(self) -> int:
+        return int((self.page - 1) * self.page_size)
 
     @cached_property
-    def count(self):
+    def count(self) -> int:
         return self.cursor.rowcount
 
     def _scroll(self):
         self.cursor.scroll(self.offset, mode='absolute')
 
-    def has_next(self):
+    def has_next(self) -> bool:
         return self.count > self.offset + self.page_size
 
-    def has_previous(self):
+    def has_previous(self) -> bool:
         return self.page > 1
 
     @cached_property
     def url(self):
         return self.request.build_absolute_uri()
 
-    def get_next_link(self):
+    def get_next_link(self) -> Optional[str]:
         if not self.has_next():
             return None
         url = self.url
         page_number = self.page + 1
         return replace_query_param(url, self.page_number_param, page_number)
 
-    def get_previous_link(self):
+    def get_previous_link(self) -> Optional[str]:
         if not self.has_previous():
             return None
         url = self.url
@@ -432,12 +431,12 @@ class PageNumberPaginator:
         return replace_query_param(url, self.page_number_param, page_number)
 
     @cached_property
-    def data(self):
+    def data(self) -> List:
         self._scroll()
         columns = sp_loader.columns_from_cursor(self.cursor)
         return [sp_loader.row_to_dict(row, columns) for row in self.cursor.fetchmany(self.page_size)]
 
-    def response(self, serializer: Optional[Callable] = None):
+    def response(self, serializer: Optional[Callable] = None) -> Response:
         data = self.data
         if serializer is not None:
             data = serializer(data=data, context={'request': self.request})
