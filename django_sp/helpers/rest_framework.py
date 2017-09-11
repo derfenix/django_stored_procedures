@@ -2,7 +2,7 @@ import datetime
 import re
 from collections import OrderedDict, defaultdict
 from decimal import Decimal
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union, Type
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 from django.core.exceptions import ValidationError
 from django.utils.dateparse import parse_datetime
