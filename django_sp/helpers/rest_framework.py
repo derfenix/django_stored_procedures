@@ -433,8 +433,8 @@ class PageNumberPaginator:
     @cached_property
     def data(self) -> List:
         self._scroll()
-        columns = sp_loader.columns_from_cursor(self.cursor)
-        return [sp_loader.row_to_dict(row, columns) for row in self.cursor.fetchmany(self.page_size)]
+        columns = sp_loader().columns_from_cursor(self.cursor)
+        return [sp_loader().row_to_dict(row, columns) for row in self.cursor.fetchmany(self.page_size)]
 
     def response(self, serializer: Optional[Callable] = None) -> Response:
         data = self.data

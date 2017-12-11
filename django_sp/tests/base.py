@@ -11,4 +11,4 @@ class BaseTestCase(TestCase):
     def sp_loader(self):
         from django_sp import sp_loader
 
-        return sp_loader
+        return sp_loader()
