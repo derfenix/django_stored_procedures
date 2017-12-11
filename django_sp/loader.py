@@ -92,7 +92,7 @@ class Loader:
 
         arguments = ",".join(chain(
             ['%s' for _ in args],
-            ["{} := '{}'".format(name, value) for name, value in kwargs.items()]
+            ["{} := {}".format(name, value) for name, value in kwargs.items()]
         ))
         # noinspection SqlDialectInspection, SqlNoDataSourceInspection
         statement = "SELECT * FROM {name}({arguments})".format(
