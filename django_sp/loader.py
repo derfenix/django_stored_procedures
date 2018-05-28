@@ -102,7 +102,7 @@ class Loader:
         return self._get_res(statement, args, ret)
 
     def _execute_view(self, filters: Optional[str] = None, params: Optional[List] = None, *,
-                      name: str, ret: str = 'one'):
+                      name: str, ret: str = 'one', fields: str = '*'):
         """
         Select from view and return result 
 
@@ -114,9 +114,10 @@ class Loader:
             filters = filters.strip()
 
         # noinspection SqlDialectInspection, SqlNoDataSourceInspection
-        statement = "SELECT * FROM {name}{where}{filters}".format(
+        statement = "SELECT {fields} FROM {name}{where}{filters}".format(
             name=name, filters=filters if filters else '',
-            where=' WHERE ' if filters else ''
+            where=' WHERE ' if filters else '',
+            fields=fields
         )
 
         return self._get_res(statement, params, ret)
